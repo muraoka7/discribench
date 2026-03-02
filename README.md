@@ -1,5 +1,7 @@
 # DiscriBench
 
+DiscriBench is a multiple-choice VQA dataset containing 1200 samples to evaluate, analyze, and diagnose the discriminative capability of Vision-Language Models (VLMs).
+
 See [README.md](data/README.md) for dataset details.
 
 ## Setup
@@ -10,7 +12,7 @@ uv sync
 # pip install -r requirements.txt
 ```
 
-## How to run
+## How to evaluate VLMs on DiscriBench
 
 1. Generate model prediction
 
@@ -56,7 +58,7 @@ The summary of license information is provided below:
 ```bibtex
 @inproceedings{muraoka:LREC2026:discribench,
     title = "Evaluating Discriminability of Vision-Language Models",
-    author = "Muraoka, Masayasu  and Okazaki, Naoaki",
+    author = "Muraoka, Masayasu and Okazaki, Naoaki",
     booktitle = "The Fifteenth Language Resources and Evaluation Conference",
     month = May,
     year = "2026",
