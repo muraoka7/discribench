@@ -80,7 +80,7 @@ def get_args() -> argparse.Namespace:
 def predict(req_data: ModelRequestData) -> list[DiscriBenchSample]:
     sampling_params = SamplingParams(
         temperature=0.0,
-        max_tokens=8192,
+        max_tokens=512,
         stop_token_ids=req_data.stop_token_ids,
     )
 

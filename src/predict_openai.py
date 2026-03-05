@@ -151,7 +151,7 @@ def get_response(vlm_input: list[dict], api_func: T.Callable, model_name: str) -
     raw_response = get_response_with_backoff(
         api_func,
         model=model_name,
-        max_completion_tokens=8192,
+        max_completion_tokens=512,
         messages=vlm_input,
     )
     out_text = ""
