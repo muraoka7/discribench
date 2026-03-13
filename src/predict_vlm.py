@@ -7,10 +7,10 @@ Make model prediction of open VLMs.
 __author__ = "Masayasu MURAOKA"
 
 import argparse
-from dataclasses import asdict
+from dataclasses import asdict, is_dataclass
 import json
 import os
-from typing import List
+from typing import Any, List
 
 from vllm import SamplingParams, RequestOutput
 
@@ -18,6 +18,7 @@ from open_vlm_utils import (
     DiscriBenchSample,
     ModelRequestData,
     MODEL_MAP,
+    MODEL_VERSION_MAP,
 )
 from utils import (
     DATA_TYPES,
@@ -28,6 +29,7 @@ from utils import (
 
 def main() -> None:
     args = get_args()
+    validate_args(args)
 
     data = load_data(args.data_type, args.lang)
     req_data = MODEL_MAP[args.model_name](data, args.model_ver, args.lang)
@@ -77,6 +79,34 @@ def get_args() -> argparse.Namespace:
     return args
 
 
+def validate_args(args: argparse.Namespace) -> None:
+    allowed_versions = MODEL_VERSION_MAP[args.model_name]
+    if allowed_versions is None:
+        return
+
+    if args.model_ver is None:
+        raise ValueError(
+            f"--model_ver is required for {args.model_name}. "
+            f"Choose one of: {', '.join(allowed_versions)}"
+        )
+
+    if args.model_ver not in allowed_versions:
+        raise ValueError(
+            f"Invalid --model_ver for {args.model_name}: {args.model_ver}. "
+            f"Choose one of: {', '.join(allowed_versions)}"
+        )
+
+
+def serialize_response(output: Any) -> dict[str, Any]:
+    if is_dataclass(output):
+        return asdict(output)
+    if hasattr(output, "to_dict") and callable(output.to_dict):
+        return output.to_dict()
+    if hasattr(output, "__dict__"):
+        return dict(output.__dict__)
+    raise TypeError(f"Unsupported response type for serialization: {type(output).__name__}")
+
+
 def predict(req_data: ModelRequestData) -> list[DiscriBenchSample]:
     sampling_params = SamplingParams(
         temperature=0.0,
@@ -85,21 +115,20 @@ def predict(req_data: ModelRequestData) -> list[DiscriBenchSample]:
     )
 
     outputs: List[RequestOutput]
-    outputs = [
-        req_data.llm.generate(
-            p,
-            sampling_params=sampling_params,
-            use_tqdm=False
-        )[0]
-        for p in req_data.prompts
-    ]
+    outputs = req_data.llm.generate(
+        req_data.prompts,
+        sampling_params=sampling_params,
+        use_tqdm=False,
+    )
     assert len(outputs) == len(req_data.raw_inputs)
 
     results = []
     for output, sample, prompt in zip(outputs, req_data.raw_inputs, req_data.prompts):
+        if not output.outputs:
+            raise RuntimeError(f"Model generation returned no outputs for prompt: {prompt['prompt'][:200]}")
         sample["input"] = prompt["prompt"]
         sample["output"] = output.outputs[0].text
-        sample["response"] = asdict(output.outputs[0])
+        sample["response"] = serialize_response(output.outputs[0])
         results.append(sample)
 
     return results

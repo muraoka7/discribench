@@ -70,18 +70,14 @@ def get_args() -> argparse.Namespace:
 
 def make_input(datum: dict, lang: str) -> tuple[list[dict], str]:
     image_media_type = "image/jpeg"
-    images = [
-        base64.b64encode(
-            open(image_file, "rb").read()
-        ).decode("utf-8") for image_file in datum["image_files"]
-    ]
+    images = []
+    for image_file in datum["image_files"]:
+        with open(image_file, "rb") as image_stream:
+            images.append(base64.b64encode(image_stream.read()).decode("utf-8"))
 
-    if len(images) > 1:
-        image_contents = [
-            {
-                "type": "text",
-                "text": "Image 1: "
-            },
+    image_contents = []
+    if len(images) == 1:
+        image_contents.append(
             {
                 "type": "image",
                 "source": {
@@ -89,55 +85,26 @@ def make_input(datum: dict, lang: str) -> tuple[list[dict], str]:
                     "media_type": image_media_type,
                     "data": images[0],
                 },
-            },
-            {
-                "type": "text",
-                "text": "\nImage 2: "
-            },
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": image_media_type,
-                    "data": images[1],
-                },
-            },
-            {
-                "type": "text",
-                "text": "\nImage 3: "
-            },
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": image_media_type,
-                    "data": images[2],
-                },
-            },
-            {
-                "type": "text",
-                "text": "\nImage 4: "
-            },
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": image_media_type,
-                    "data": images[3],
-                },
-            },
-        ]
+            }
+        )
     else:
-        image_contents = [
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": image_media_type,
-                    "data": images[0],
-                },
-            },
-        ]
+        for idx, image in enumerate(images, start=1):
+            image_contents.extend(
+                [
+                    {
+                        "type": "text",
+                        "text": f"{'' if idx == 1 else chr(10)}Image {idx}: "
+                    },
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": image_media_type,
+                            "data": image,
+                        },
+                    },
+                ]
+            )
 
     prompt = PROMPT_TEMPLATE[lang].format(datum['context'], datum['question'])
     messages = [
@@ -170,7 +137,7 @@ def get_response(vlm_input: list[dict], api_func: T.Callable, model_name: str) -
     raw_response = get_response_with_backoff(
         api_func,
         model=model_name,
-        max_completion_tokens=512,
+        max_tokens=512,
         messages=vlm_input,
     )
     out_text = ""

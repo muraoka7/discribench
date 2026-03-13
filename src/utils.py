@@ -10,7 +10,7 @@ import json
 import os
 import typing as T
 
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 
 DATA_TYPES = {
@@ -21,6 +21,7 @@ DATA_TYPES = {
     "vis_easy",
     "vis_medium",
     "answer_embed",
+    "debug"  # TODO: remove later
 }
 PROMPT_TEMPLATE = {
     "en": """{}
@@ -52,6 +53,18 @@ def load_data(data_type: str, lang: str) -> list[dict]:
     return data
 
 
-@retry(wait=wait_exponential(multiplier=1, min=2, max=60), stop=stop_after_attempt(10))
+def _is_retryable_error(exc: Exception) -> bool:
+    status_code = getattr(exc, "status_code", None)
+    if status_code is not None:
+        return status_code in {408, 409, 429} or status_code >= 500
+
+    return isinstance(exc, (ConnectionError, TimeoutError, OSError))
+
+
+@retry(
+    retry=retry_if_exception(_is_retryable_error),
+    wait=wait_exponential(multiplier=1, min=2, max=60),
+    stop=stop_after_attempt(10),
+)
 def get_response_with_backoff(api_func: T.Callable, **kwargs: T.Any) -> T.Any:
     return api_func(**kwargs)

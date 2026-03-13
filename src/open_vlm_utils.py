@@ -16,6 +16,14 @@ from utils import PROMPT_TEMPLATE
 
 
 DiscriBenchSample = dict[str, T.Any]
+MODEL_VERSION_MAP = {
+    "idefics3": None,
+    "internvl": ("2.5-2B", "2.5-8B", "2.5-26B", "2.5-38B", "2.5-78B"),
+    "llava-ov": ("7B-chat", "72B-chat"),
+    "phi3v": ("3.5",),
+    "pixtral": ("12B",),
+    "qwen2-vl": ("2B", "7B", "72B"),
+}
 
 
 class ModelRequestData(T.NamedTuple):
@@ -26,7 +34,15 @@ class ModelRequestData(T.NamedTuple):
 
 
 def load_image(img_path: str) -> Image.Image:
-    return Image.open(img_path).convert("RGB")
+    with Image.open(img_path) as img:
+        return img.convert("RGB")
+
+
+def ensure_cuda_available(model_name: str) -> int:
+    device_count = torch.cuda.device_count()
+    if device_count == 0:
+        raise RuntimeError(f"{model_name} requires a CUDA GPU, but no CUDA devices were detected.")
+    return device_count
 
 
 def load_idefics3(samples: list[DiscriBenchSample], model_ver: str | None, lang: str) -> ModelRequestData:
@@ -95,13 +111,14 @@ You are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>
     else:
         raise NotImplementedError
 
+    device_count = ensure_cuda_available(model_name)
     llm = LLM(
         model=model_name,
         trust_remote_code=True,
         max_model_len=4096,
         limit_mm_per_prompt={"image": 4},
         mm_processor_kwargs={"max_dynamic_patch": 4},
-        tensor_parallel_size=torch.cuda.device_count(),
+        tensor_parallel_size=device_count,
         gpu_memory_utilization=0.95,
     )
 
@@ -148,13 +165,14 @@ def load_llava_ov(samples: list[DiscriBenchSample], model_ver: str | None, lang:
     else:
         raise NotImplementedError
 
+    device_count = ensure_cuda_available(model_name)
     llm = LLM(
         model=model_name,
         max_model_len=16384,
         max_num_seqs=16,
         enforce_eager=True,
         limit_mm_per_prompt={"image": 4},
-        tensor_parallel_size=torch.cuda.device_count(),
+        tensor_parallel_size=device_count,
         gpu_memory_utilization=0.95,
     )
 
@@ -275,8 +293,6 @@ def load_pixtral(samples: list[DiscriBenchSample], model_ver: str | None, lang: 
 
 
 def load_qwen2_vl(samples: list[DiscriBenchSample], model_ver: str, lang: str) -> ModelRequestData:
-    if model_ver is not None:
-        model_ver = model_ver.replace(".lib", "")
     if model_ver == "2B":
         model_name = "Qwen/Qwen2-VL-2B-Instruct"
     elif model_ver == "7B":
@@ -286,12 +302,13 @@ def load_qwen2_vl(samples: list[DiscriBenchSample], model_ver: str, lang: str) -
     else:
         raise NotImplementedError
 
+    device_count = ensure_cuda_available(model_name)
     llm = LLM(
         model=model_name,
         max_model_len=32768,
         max_num_seqs=16,
         limit_mm_per_prompt={"image": 4},
-        tensor_parallel_size=torch.cuda.device_count(),
+        tensor_parallel_size=device_count,
         gpu_memory_utilization=0.99,
     )
 
