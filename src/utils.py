@@ -21,7 +21,6 @@ DATA_TYPES = {
     "vis_easy",
     "vis_medium",
     "answer_embed",
-    "debug"  # TODO: remove later
 }
 PROMPT_TEMPLATE = {
     "en": """{}
